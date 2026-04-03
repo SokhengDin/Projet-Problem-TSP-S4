@@ -48,8 +48,8 @@
 %% ─── Header / Footer ─────────────────────────────────────────────────────────
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\color{gray}CORO Project --- Coupe Breitling 100/24}
-\fancyhead[R]{\small\color{gray}ENSIIE · 2025--2026}
+\fancyhead[L]{\small\color{gray}CORO Project}
+\fancyhead[R]{\small\color{gray}ENSIIE 2025--2026}
 \fancyfoot[C]{\thepage}
 \renewcommand{\headrulewidth}{0.4pt}
 
@@ -157,7 +157,7 @@ coordinate domain.
 
 
 %% ═════════════════════════════════════════════════════════════════════════════
-\section{ILP Model~1: MTZ Formulation}
+\section{Integer Linear Programming Model~1: MTZ Formulation}
 %% ═════════════════════════════════════════════════════════════════════════════
 
 The first model uses the Miller--Tucker--Zemlin (MTZ) subtour elimination
@@ -278,7 +278,7 @@ below summarises the overall resolution procedure.
 
 
 %% ═════════════════════════════════════════════════════════════════════════════
-\section{ILP Model~2: Subtour Elimination Constraints (SEC)}
+\section{Integer Linear Programming Model~2: Subtour Elimination Constraints (SEC)}
 %% ═════════════════════════════════════════════════════════════════════════════
 
 The second model replaces the MTZ constraints with \emph{subtour elimination
@@ -509,14 +509,12 @@ The range graph has 420~feasible arcs.
 \toprule
 Method & Objective & Stops & Status & Time (s) & B\&B nodes \\
 \midrule
-MTZ       & \textbf{114} & 14 & OPTIMAL   & 4.63   & 1\,295 \\
-SEC       & \textbf{114} & 14 & OPTIMAL   & 35.29  & 35 \\
-Heuristic & 149          & 13$^\dagger$ & Invalid$^\dagger$ & $<$0.01 & --- \\
+MTZ       & \textbf{114} & 14 & OPTIMAL   & 4.49   & 1\,295 \\
+SEC       & \textbf{114} & 14 & OPTIMAL   & 34.55  & 35 \\
+Heuristic & 155          & 14 & Feasible  & $<$0.01 & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
-{\small $^\dagger$\,Heuristic produced an invalid solution: only 13~distinct stops
-($< V_{\min} = 14$) and the path contains a duplicated node.}
 
 \medskip
 
@@ -524,12 +522,13 @@ Both ILP models prove the optimal cost of~114 with path
 $27 \to 7 \to 10 \to 23 \to 11 \to 32 \to 3 \to 4 \to 9 \to 28 \to 22 \to 24
 \to 35 \to 8$.
 
-MTZ is $\approx 8\times$ faster despite exploring $37\times$ more B\&B nodes
-(1\,295 vs.~35). This counter-intuitive result is explained by the overhead of the
-iterative SEC approach: the model was re-solved from scratch after adding each batch
-of cuts (66~cuts total across multiple iterations), discarding the B\&B tree each
-time. With lazy callbacks, the tighter LP bound of SEC would translate directly into
-less total work.
+The heuristic found a valid path of cost~155 (35.96\% above optimal) visiting
+15~stops (14~unique). MTZ is $\approx 8\times$ faster despite exploring $37\times$
+more B\&B nodes (1\,295 vs.~35). This counter-intuitive result is explained by the
+overhead of the iterative SEC approach: the model was re-solved from scratch after
+adding each batch of cuts (66~cuts total across multiple iterations), discarding the
+B\&B tree each time. With lazy callbacks, the tighter LP bound of SEC would translate
+directly into less total work.
 
 \begin{figure}[H]
   \centering
@@ -548,8 +547,8 @@ The range graph has 614~feasible arcs.
 \toprule
 Method & Objective & Stops & Status & Time (s) & B\&B nodes \\
 \midrule
-MTZ       & 948  & 49 & Time limit & 120.01 & 53\,334 \\
-SEC       & ---  & ---  & Time limit & 165.41 & 13\,739 \\
+MTZ       & 948  & 49 & Time limit & 120.01 & 54\,695 \\
+SEC       & ---  & ---  & Time limit & 161.64 & 13\,739 \\
 Heuristic & 637  & 36 & Invalid$^\dagger$ & $<$0.01 & --- \\
 \bottomrule
 \end{tabular}
@@ -560,15 +559,15 @@ Heuristic & 637  & 36 & Invalid$^\dagger$ & $<$0.01 & --- \\
 \medskip
 
 Both ILP models hit the time limit. MTZ found an incumbent of cost~948
-(49~stops) but could not prove optimality after 53\,334~B\&B nodes. Using the
+(49~stops) but could not prove optimality after 54\,695~B\&B nodes. Using the
 terminology from the lecture on branch-and-bound, the tree was not fully
 explored: many open nodes remained with LP bounds that could not be pruned against
 the incumbent.
 
-The SEC model explored only 13\,739~B\&B nodes (versus 53\,334 for MTZ), confirming
+The SEC model explored only 13\,739~B\&B nodes (versus 54\,695 for MTZ), confirming
 the tighter LP bound, but added 105~cuts across multiple iterations. Each re-solve
 consumed part of the time budget, and no valid subtour-free solution was found within
-165\,s.
+162\,s.
 
 The heuristic returns cost~637 in under 1\,ms. It visits 36 distinct nodes
 ($\geq V_{\min} = 35$) but contains one infeasible leg ($\dist{19}{55} = 56 > R = 31$),
@@ -598,13 +597,13 @@ Instance & Method & Objective & Stops & Time (s) & Remark \\
   & Heuristic & 12  & 4  & 0.12    & Matches optimal \\
 \midrule
 \multirow{3}{*}{\texttt{40\_1}}
-  & MTZ       & 114 & 14 & 4.63    & Optimal, 1\,295 nodes \\
-  & SEC       & 114 & 14 & 35.29   & Optimal, 35 nodes, 66 cuts \\
-  & Heuristic & 149 & 13 & $<$0.01 & Invalid ($V_{\min}$ violated) \\
+  & MTZ       & 114 & 14 & 4.49    & Optimal, 1\,295 nodes \\
+  & SEC       & 114 & 14 & 34.55   & Optimal, 35 nodes, 66 cuts \\
+  & Heuristic & 155 & 14 & $<$0.01 & Feasible \\
 \midrule
 \multirow{3}{*}{\texttt{80\_1}}
-  & MTZ       & 948 & 49 & 120.01  & Time limit, 53\,334 nodes \\
-  & SEC       & --- & ---  & 165.41  & Time limit, 105 cuts \\
+  & MTZ       & 948 & 49 & 120.01  & Time limit, 54\,695 nodes \\
+  & SEC       & --- & ---  & 161.64  & Time limit, 105 cuts \\
   & Heuristic & 637 & 36 & $<$0.01 & Invalid (range violated) \\
 \bottomrule
 \end{tabular}
@@ -647,38 +646,38 @@ Instance & $n$ & $m$ & $R$ & $V_{\min}$ & $s$ & $t$ & Arcs \\
 Instance & Method & Obj. & Stops & Status & Time (s) & B\&B nodes & SEC cuts \\
 \midrule
 \multirow{3}{*}{\texttt{20\_1}}
-  & MTZ       & \textbf{124} & 8 & Optimal   &  92.95 & 115\,901 & --- \\
-  & SEC       & ---          & --- & Time lim &121.17  &      177 & 116 \\
+  & MTZ       & \textbf{124} & 8 & Optimal   &  89.78 & 115\,901 & --- \\
+  & SEC       & ---          & --- & Time lim &120.12  &      155 & 115 \\
   & Heuristic & 138          & 8 & Feasible  &   0.12 & ---      & --- \\
 \midrule
 \multirow{3}{*}{\texttt{20\_2}}
-  & MTZ       & \textbf{104} & 8 & Optimal   &   3.33 &   1\,495 & --- \\
-  & SEC       & ---          & --- & Time lim &121.79  &      224 & 120 \\
+  & MTZ       & \textbf{104} & 8 & Optimal   &   3.29 &   1\,495 & --- \\
+  & SEC       & ---          & --- & Time lim &121.51  &      129 & 121 \\
   & Heuristic & 119          & 8 & Feasible  &  $<$0.01 & ---    & --- \\
 \midrule
 \multirow{3}{*}{\texttt{20\_3}}
-  & MTZ       & \textbf{104} & 8  & Optimal  &   1.99 &      892 & --- \\
-  & SEC       & \textbf{104} & 8  & Optimal  &  51.62 &      140 & 101 \\
+  & MTZ       & \textbf{104} & 8  & Optimal  &   1.94 &      892 & --- \\
+  & SEC       & \textbf{104} & 8  & Optimal  &  50.60 &      140 & 101 \\
   & Heuristic & 117          & 8  & Feasible &  $<$0.01 & ---    & --- \\
 \midrule
 \multirow{3}{*}{\texttt{20\_4}}
-  & MTZ       & \textbf{109} & 8 & Optimal   & 105.87 & 142\,906 & --- \\
-  & SEC       & ---          & --- & Time lim &121.13  &      379 & 124 \\
+  & MTZ       & \textbf{109} & 8 & Optimal   & 103.39 & 142\,906 & --- \\
+  & SEC       & ---          & --- & Time lim &120.57  &      397 & 125 \\
   & Heuristic & 118          & 8 & Feasible  &  $<$0.01 & ---    & --- \\
 \midrule
 \multirow{3}{*}{\texttt{30\_1}}
-  & MTZ       & \textbf{144} & 14 & Optimal  & 112.79 & 118\,915 & --- \\
-  & SEC       & ---          & --- & Time lim &120.59  &    1\,100 & 134 \\
+  & MTZ       & \textbf{144} & 14 & Optimal  & 104.06 & 118\,915 & --- \\
+  & SEC       & ---          & --- & Time lim &122.76  &    1\,666 & 138 \\
   & Heuristic & 152          & 14 & Feasible &  $<$0.01 & ---    & --- \\
 \midrule
 \multirow{3}{*}{\texttt{50\_1}}
-  & MTZ       & \textbf{168} & 16 & Optimal  &  69.55 &  31\,175 & --- \\
-  & SEC       & ---          & --- & Time lim &123.65  &      901 & 90 \\
+  & MTZ       & \textbf{168} & 16 & Optimal  &  64.09 &  31\,175 & --- \\
+  & SEC       & ---          & --- & Time lim &122.16  &      990 & 91 \\
   & Heuristic & 275$^\dagger$ & --- & Invalid &  $<$0.01 & ---    & --- \\
 \midrule
 \multirow{3}{*}{\texttt{70\_1}}
-  & MTZ       & 469 & 22 & Time lim  & 120.02 &  32\,330 & --- \\
-  & SEC       & --- & --- & Time lim & 141.22 &  11\,647 & 127 \\
+  & MTZ       & 469 & 22 & Time lim  & 120.01 &  34\,932 & --- \\
+  & SEC       & --- & --- & Time lim & 141.53 &  11\,647 & 127 \\
   & Heuristic & 800$^\dagger$ & --- & Invalid &  $<$0.01 & ---    & --- \\
 \bottomrule
 \end{tabular}
@@ -696,7 +695,7 @@ Instance & Method & Obj. & Stops & Status & Time (s) & B\&B nodes & SEC cuts \\
         when many cuts are needed.
 
   \item SEC consistently explores far fewer B\&B nodes than MTZ (e.g., 140 vs.\ 892
-        on \texttt{20\_3}; 379 vs.\ 142\,906 on \texttt{20\_4}), confirming the
+        on \texttt{20\_3}; 397 vs.\ 142\,906 on \texttt{20\_4}), confirming the
         tighter LP relaxation predicted by theory. The wall-clock disadvantage is
         entirely due to re-solve overhead.
 
@@ -735,9 +734,9 @@ The theoretical prediction from the lectures is that SEC provides a tighter LP
 relaxation ($z_{\mathrm{LP}}^{\mathrm{SEC}} \geq z_{\mathrm{LP}}^{\mathrm{MTZ}}$),
 which translates to fewer B\&B nodes via the pruning-by-bound criterion. Our results
 confirm the node count prediction consistently: SEC explores $37\times$ fewer nodes
-than MTZ on \texttt{instance\_40\_1} (35 vs.\ 1\,295), $376\times$ fewer on
-\texttt{instance\_20\_4} (379 vs.\ 142\,906), and $2.8\times$ fewer on the 70-node
-instance (11\,647 vs.\ 32\,330).
+than MTZ on \texttt{instance\_40\_1} (35 vs.\ 1\,295), $360\times$ fewer on
+\texttt{instance\_20\_4} (397 vs.\ 142\,906), and $3.0\times$ fewer on the 70-node
+instance (11\,647 vs.\ 34\,932).
 
 However, wall-clock time tells a different story. The iterative SEC implementation
 re-solves the ILP from scratch after each cut batch, discarding the B\&B tree each
