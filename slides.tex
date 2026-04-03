@@ -6,6 +6,9 @@
 \usepackage{booktabs}
 \usepackage{xcolor}
 \usepackage{colortbl}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\algrenewcommand\algorithmicindent{0.8em}
 \usetheme{CambridgeUS}
 \usecolortheme{beaver}
 
@@ -140,23 +143,26 @@ $$u_i - u_j + n\,x_{ij} \leq n-1$$
 \end{column}
 
 \begin{column}{0.48\textwidth}
-\begin{block}{\textbf{How MTZ prevents subtours}}
-\small
-If $x_{ij}=1$: constraint forces $u_j \geq u_i + 1$.\\[4pt]
-Positions strictly increase along any used arc sequence.\\
-A subtour would require positions to loop back --- impossible.
+\begin{block}{\textbf{MTZ solve (pseudocode)}}
+\footnotesize
+\begin{algorithmic}[1]
+\State Build ILP with $x_{ij}$, $y_i$, $u_i$, constraints C1--C8.
+\State Solve LP relaxation $\Rightarrow z_{\mathrm{LP}}$ (lower bound).
+\If{LP solution is integer} \State \Return it. \EndIf
+\Repeat
+  \State Branch on most fractional $x_{ij}$.
+  \State Solve LP at B\&B node.
+  \If{infeasible} \State \textbf{prune}. \EndIf
+  \If{bound $\geq z^*$} \State \textbf{prune}. \EndIf
+  \If{integer \& better} \State update $z^*$. \EndIf
+\Until{queue empty}
+\State \Return best solution $z^*$.
+\end{algorithmic}
 \end{block}
 
-\vspace{4pt}
+\vspace{2pt}
 
-\begin{block}{\textbf{Properties}}
-\small
-\begin{itemize}\setlength\itemsep{2pt}
-  \item $O(n^2)$ constraints --- polynomial
-  \item Single solve, no iterations
-  \item \textcolor{darkred}{Weak LP relaxation:} fractional $u_i$ values allow subtour-like fractional solutions $\Rightarrow$ more B\&B nodes
-\end{itemize}
-\end{block}
+{\footnotesize $O(n^2)$ constraints. \textcolor{darkred}{Weak LP relaxation} $\Rightarrow$ more B\&B nodes.}
 \end{column}
 \end{columns}
 
@@ -179,14 +185,19 @@ If $\geq |S|$ arcs exist inside $S$, a disconnected cycle exists.
 \vspace{4pt}
 
 \begin{block}{\textbf{Iterative solve-and-cut}}
-\small
-\begin{enumerate}\setlength\itemsep{1pt}
-  \item Solve ILP with C1--C6 only.
-  \item BFS from $s$; find unreachable visited nodes $U$.
-  \item If $U=\emptyset$: valid --- stop.
-  \item Add one SEC per component of $U$.
-  \item Re-solve. Repeat.
-\end{enumerate}
+\footnotesize
+\begin{algorithmic}[1]
+\State Solve ILP with C1--C6 only.
+\Repeat
+  \State BFS from $s$ on used arcs.
+  \State $U \leftarrow \{i : y_i=1,\; i \text{ unreachable from } s\}$
+  \If{$U = \emptyset$} \State \Return current solution. \EndIf
+  \For{each component $S$ of $U$}
+    \State Add: $\sum_{i,j\in S} x_{ij} \leq |S|-1$
+  \EndFor
+  \State Re-solve ILP.
+\Until{valid}
+\end{algorithmic}
 \end{block}
 \end{column}
 
@@ -220,34 +231,44 @@ Tighter LP bound $\Rightarrow$ fewer B\&B nodes pruned.
 \begin{columns}[T]
 \begin{column}{0.48\textwidth}
 \begin{block}{\textbf{Phase 1: Greedy Construction}}
-\small
-From $s$, at each step:\\[2pt]
-1. Find unvisited neighbours within $R$ (not $t$).\\
-2. If any lie in uncovered region $\to$ go to nearest such node.\\
-3. Otherwise $\to$ go to nearest unvisited neighbour.\\
-4. If no neighbour: Dijkstra escape on range graph.\\
-5. Stop when all regions covered and $|\text{visited}|\geq V_{\min}$.\\
-6. Connect to $t$ directly or via Dijkstra.
+\footnotesize
+\begin{algorithmic}[1]
+\State $v\leftarrow s$; path $\leftarrow [s]$
+\While{regions not all covered or $|\text{visited}|<V_{\min}$}
+  \State $N\leftarrow$ unvisited neighbours of $v$ within $R$
+  \If{$N=\emptyset$} \State Dijkstra escape. \EndIf
+  \State Prefer $j\in N$ in uncovered region; else nearest $j\in N$
+  \State Append $j$; $v\leftarrow j$
+\EndWhile
+\State Append $t$ (direct or via Dijkstra).
+\end{algorithmic}
 \end{block}
 
-\vspace{4pt}
+\vspace{3pt}
 
 \begin{block}{\textbf{Phase 2: 2-opt}}
-\small
-Reverse interior segment $[v_i,\ldots,v_j]$ if:\\
-total distance decreases \textbf{and} all new pairs satisfy $d\leq R$.\\
-Repeat until no improvement.
+\footnotesize
+\begin{algorithmic}[1]
+\Repeat
+  \For{all pairs $i<j$ (interior)}
+    \State Reverse $[v_i,\ldots,v_j]$; accept if $d\leq R$ and shorter.
+  \EndFor
+\Until{no improvement}
+\end{algorithmic}
 \end{block}
 \end{column}
 
 \begin{column}{0.48\textwidth}
 \begin{block}{\textbf{Phase 3: Node Removal}}
-\small
-For each interior node $v_\ell$, remove if:\\[2pt]
-$\bullet$ $d(v_{\ell-1}, v_{\ell+1})\leq R$\\
-$\bullet$ $|\text{visited}|-1 \geq V_{\min}$\\
-$\bullet$ all regions still covered\\[3pt]
-Remove node with largest distance saving. Repeat.
+\footnotesize
+\begin{algorithmic}[1]
+\Repeat
+  \State Find $v_\ell$ maximising saving s.t.
+  \State \hspace{1em} $d(v_{\ell-1},v_{\ell+1})\leq R$,\; $|\text{path}|-1\geq V_{\min}$
+  \State \hspace{1em} region $r_{v_\ell}$ covered by another node
+  \If{found} \State Remove $v_\ell$. \EndIf
+\Until{none removable}
+\end{algorithmic}
 \end{block}
 
 \vspace{4pt}

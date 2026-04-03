@@ -137,7 +137,7 @@ subject to:
     && \text{(minimum visits)}. \label{eq:card}
 \end{align}
 
-This problem is related to the Travelling Salesman Problem (TSP) studied in the CORO
+This problem is related to the Travelling Salesman Problem (TSP) studied in the
 lectures, but differs in several important ways. First, we seek a \emph{path} from $s$
 to $t$, not a Hamiltonian cycle. Second, we select a \emph{subset} of aerodromes to
 visit rather than visiting all of them. Third, the region-covering
@@ -161,7 +161,7 @@ coordinate domain.
 %% ═════════════════════════════════════════════════════════════════════════════
 
 The first model uses the Miller--Tucker--Zemlin (MTZ) subtour elimination
-technique~\cite{mtz}, which was presented in the CORO lectures in the context of
+technique~\cite{mtz}, which was presented in the lectures in the context of
 the asymmetric TSP. The idea is to introduce continuous \emph{position} variables
 $u_i$ that assign each visited node its order along the path; a subtour is
 impossible because positions must strictly increase along any sequence of used arcs.
@@ -238,7 +238,7 @@ Since positions strictly increase along every used arc, any subset of nodes form
 a directed cycle would require positions to simultaneously increase and return to
 their starting value, which is impossible. This eliminates all subtours.
 
-As discussed in the CORO lectures on the TSP, the MTZ formulation uses only
+As discussed in the lectures on the TSP, the MTZ formulation uses only
 $O(n^2)$ constraints (polynomial), but its LP relaxation is weaker than the subtour
 polytope because the continuous $u_i$ variables allow fractional solutions that
 ``look like'' subtours to the relaxation. This typically leads to more
@@ -250,6 +250,32 @@ $u_s = 0$, and for all $i \neq s$: $u_i \leq n \cdot y_i$.
 If node $i$ is not visited ($y_i = 0$), this forces $u_i = 0$, which tightens the
 LP relaxation by preventing unvisited nodes from taking arbitrary position values.
 
+\subsection{MTZ Algorithm Overview}
+
+The model is passed to HiGHS, which solves it via branch-and-bound. The pseudocode
+below summarises the overall resolution procedure.
+
+\begin{algorithm}[H]
+\caption{MTZ-based solve}
+\begin{algorithmic}[1]
+\State Build arc set $A = \{(i,j) : \dist{i}{j} \leq R,\; i \neq j\}$.
+\State Formulate ILP with variables $x_{ij}$, $y_i$, $u_i$ and constraints (C1)--(C8).
+\State Solve LP relaxation at root $\Rightarrow$ lower bound $z_{\mathrm{LP}}$.
+\If{LP solution is integer}
+  \State \Return LP solution.
+\EndIf
+\State Branch on a fractional $x_{ij}$ variable (set to 0 or 1).
+\Repeat
+  \State Solve LP at current B\&B node.
+  \If{LP infeasible} \textbf{prune} (infeasibility). \EndIf
+  \If{LP bound $\geq$ incumbent $z^*$} \textbf{prune} (bound). \EndIf
+  \If{LP solution is integer and cost $< z^*$} update $z^* \leftarrow$ cost. \EndIf
+  \State Otherwise, branch on the most fractional variable.
+\Until{B\&B queue is empty}
+\State \Return best integer solution found with cost $z^*$.
+\end{algorithmic}
+\end{algorithm}
+
 
 %% ═════════════════════════════════════════════════════════════════════════════
 \section{ILP Model~2: Subtour Elimination Constraints (SEC)}
@@ -257,7 +283,7 @@ LP relaxation by preventing unvisited nodes from taking arbitrary position value
 
 The second model replaces the MTZ constraints with \emph{subtour elimination
 constraints} (SEC), following the approach of Dantzig, Fulkerson, and
-Johnson~\cite{dantzig}. This was also covered in the CORO lectures as the
+Johnson~\cite{dantzig}. This was also covered in the lectures as the
 stronger formulation for the TSP, where we saw that SEC describes the subtour
 polytope exactly and yields a tighter LP relaxation than MTZ.
 
@@ -283,14 +309,14 @@ would be disconnected from the $s$--$t$ path (because $s,t \notin S$), the
 constraint forbids it.
 
 The number of possible subsets $S$ is $2^{n-2}$, so we cannot add all constraints
-upfront. This is the same situation encountered in the CORO lectures on cutting
+upfront. This is the same situation encountered in the lectures on cutting
 plane methods: we have an exponential family of valid inequalities and must use a
 \emph{separation procedure} to identify violated ones on the fly.
 
 \subsection{Iterative Solve-and-Cut}
 
 Our implementation uses the following iterative approach, which is a simplified
-version of the cutting plane algorithm from the CORO lectures on Gomory cuts and
+version of the cutting plane algorithm from the lectures on Gomory cuts and
 SEC for the TSP:
 
 \begin{algorithm}[H]
@@ -319,7 +345,7 @@ connected components among visited nodes not reachable from $s$. Each such compo
 is a subtour, and we add one SEC constraint per component. This runs in $O(n + |A|)$
 time using BFS or DFS.
 
-In the CORO lectures, we also discussed a more sophisticated approach:
+In the lectures, we also discussed a more sophisticated approach:
 \emph{lazy constraint callbacks}, where the solver calls the separation procedure at
 each integer-feasible node during its own branch-and-bound, without restarting the
 entire solve. Our iterative implementation is simpler but slower, because each
@@ -329,7 +355,7 @@ re-solve discards the branch-and-bound tree from the previous iteration.
 
 The LP relaxation of the SEC formulation describes the \emph{subtour polytope}, which
 is a tighter outer approximation of the integer hull than the MTZ LP relaxation. In
-the notation from the CORO lectures on LP duality and relaxation quality:
+the notation from the lectures on LP duality and relaxation quality:
 \[
   z_{\mathrm{LP}}^{\mathrm{SEC}} \;\geq\; z_{\mathrm{LP}}^{\mathrm{MTZ}}
   \;\geq\; z_{\mathrm{ILP}}^*.
@@ -344,56 +370,95 @@ the best known incumbent), so fewer nodes are typically explored.
 %% ═════════════════════════════════════════════════════════════════════════════
 
 Since exact methods may time out on large instances, we designed a heuristic with
-three phases: greedy construction, 2-opt local search, and node removal.
+three phases: greedy construction~\cite{nn_heuristic}, 2-opt local
+search~\cite{lin2opt}, and node removal~\cite{lk}.
 
 \subsection{Phase~1: Greedy Construction}
 
-Starting from $s$, the algorithm builds a path by iteratively choosing the next node:
-\begin{enumerate}[nosep]
-  \item Compute the set of unvisited neighbours of the current node within range $R$.
-  \item Among these, identify nodes in uncovered regions. If any exist, go to the
-        nearest such node (this prioritises satisfying the region-covering
-        constraint~\eqref{eq:cover}).
-  \item If all reachable neighbours are in already-covered regions (or have no
-        region), go to the nearest unvisited neighbour.
-  \item Continue until all $m$ regions are covered \textbf{and} the path has at least
-        $V_{\min}$ nodes.
-  \item Connect to $t$: if $t$ is within range, go directly. Otherwise, use
-        Dijkstra's algorithm on the range graph $G$ to find the shortest path to $t$.
-\end{enumerate}
+Starting from $s$, the algorithm builds a path by iteratively choosing the next node
+using a nearest-neighbour strategy with region-coverage priority.
 
-The greedy nearest-neighbour strategy is analogous to the classical TSP heuristic
-discussed in the CORO lectures, extended with a priority mechanism for region
-coverage. Its time complexity is $O(n^2)$.
+\begin{algorithm}[H]
+\caption{Greedy construction}
+\begin{algorithmic}[1]
+\State $\text{path} \leftarrow [s]$;\quad $\text{visited} \leftarrow \{s\}$;\quad $\text{covered} \leftarrow \{r_s\} \setminus \{0\}$;\quad $v \leftarrow s$
+\While{$|\text{covered}| < m$ \textbf{or} $|\text{visited}| < V_{\min}$}
+  \State $N \leftarrow \{j \notin \text{visited} : \dist{v}{j} \leq R\}$
+  \If{$N = \emptyset$}
+    \State Dijkstra escape: find shortest range-feasible path from $v$ to any new node, append it.
+    \State \textbf{break} if still stuck.
+  \EndIf
+  \State $N_{\text{unc}} \leftarrow \{j \in N : r_j > 0 \text{ and } r_j \notin \text{covered}\}$
+  \State $\text{next} \leftarrow \arg\min_{j \in N_{\text{unc}}} \dist{v}{j}$ \quad if $N_{\text{unc}} \neq \emptyset$, \quad else $\arg\min_{j \in N} \dist{v}{j}$
+  \State Append $\text{next}$ to path; update visited and covered.
+  \State $v \leftarrow \text{next}$
+\EndWhile
+\If{$v \neq t$}
+  \State If $\dist{v}{t} \leq R$: append $t$.
+  \State Else: append shortest Dijkstra path from $v$ to $t$.
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+The greedy nearest-neighbour strategy follows Rosenkrantz, Stearns and
+Lewis~\cite{nn_heuristic}, who showed it achieves a $O(\log n)$ approximation ratio
+for metric TSP. Here it is extended with region-coverage priority.
+Its time complexity is $O(n^2)$.
 
 \subsection{Phase~2: 2-opt Local Search}
 
-Given the path $P = [v_1, v_2, \ldots, v_k]$, the 2-opt procedure considers all
-pairs of interior indices $1 < i < j < k$ and tests reversing the segment
-$[v_i, \ldots, v_j]$. The reversal is accepted if two conditions hold:
-\begin{itemize}[nosep]
-  \item Every new consecutive pair satisfies the range constraint:
-        $\dist{v_{i-1}}{v_j} \leq R$, $\dist{v_i}{v_{j+1}} \leq R$, and all pairs
-        within the reversed segment remain within $R$.
-  \item The total distance strictly decreases:
-        $\dist{v_{i-1}}{v_j} + \dist{v_i}{v_{j+1}}
-        < \dist{v_{i-1}}{v_i} + \dist{v_j}{v_{j+1}}$.
-\end{itemize}
-The procedure repeats until no improving move is found. Each pass is $O(k^2)$.
+Given the path $P = [v_1, v_2, \ldots, v_k]$, the 2-opt procedure tests reversing
+every interior segment until no improvement is found.
+
+\begin{algorithm}[H]
+\caption{2-opt local search}
+\begin{algorithmic}[1]
+\Repeat
+  \State $\text{improved} \leftarrow \text{false}$
+  \For{$i = 2$ \textbf{to} $k-2$}
+    \For{$j = i+1$ \textbf{to} $k-1$}
+      \State Reverse segment: $P' \leftarrow [v_1,\ldots,v_{i-1},v_j,v_{j-1},\ldots,v_i,v_{j+1},\ldots,v_k]$
+      \If{all consecutive pairs in $P'$ satisfy $d \leq R$ \textbf{and} $\text{cost}(P') < \text{cost}(P)$}
+        \State $P \leftarrow P'$;\quad $\text{improved} \leftarrow \text{true}$
+      \EndIf
+    \EndFor
+  \EndFor
+\Until{$\neg\,\text{improved}$}
+\end{algorithmic}
+\end{algorithm}
+
+The 2-opt move was introduced by Lin~\cite{lin2opt} and remains one of the most
+effective local search improvements for routing problems.
+Each pass is $O(k^2)$; the range check also verifies all pairs within the reversed segment.
 
 \subsection{Phase~3: Node Removal}
 
 After 2-opt, we attempt to shorten the path by removing unnecessary interior nodes.
-For each $v_\ell$ with $1 < \ell < k$, we check:
-\begin{itemize}[nosep]
-  \item $\dist{v_{\ell-1}}{v_{\ell+1}} \leq R$ (the skip is within range),
-  \item removing $v_\ell$ does not drop the visit count below $V_{\min}$,
-  \item removing $v_\ell$ does not leave any region uncovered (i.e., another visited
-        node covers the same region).
-\end{itemize}
-Among all removable nodes, we remove the one that saves the most distance:
-$\dist{v_{\ell-1}}{v_\ell} + \dist{v_\ell}{v_{\ell+1}} -
-\dist{v_{\ell-1}}{v_{\ell+1}}$. This is repeated until no beneficial removal exists.
+This greedy node-removal step is in the spirit of the Lin--Kernighan
+framework~\cite{lk}, which systematically removes edges to find cheaper
+reconnections.
+
+\begin{algorithm}[H]
+\caption{Node removal}
+\begin{algorithmic}[1]
+\Repeat
+  \State $\text{best\_save} \leftarrow 0$;\quad $\text{best\_idx} \leftarrow -1$
+  \For{$\ell = 2$ \textbf{to} $k-1$}
+    \If{$\dist{v_{\ell-1}}{v_{\ell+1}} \leq R$
+        \textbf{and} $|\text{path}|-1 \geq V_{\min}$
+        \textbf{and} region $r_{v_\ell}$ covered by another visited node}
+      \State $\text{save} \leftarrow \dist{v_{\ell-1}}{v_\ell} + \dist{v_\ell}{v_{\ell+1}} - \dist{v_{\ell-1}}{v_{\ell+1}}$
+      \If{$\text{save} > \text{best\_save}$}
+        \State $\text{best\_save} \leftarrow \text{save}$;\quad $\text{best\_idx} \leftarrow \ell$
+      \EndIf
+    \EndIf
+  \EndFor
+  \If{$\text{best\_idx} \neq -1$}
+    \State Remove $v_{\text{best\_idx}}$ from path.
+  \EndIf
+\Until{$\text{best\_idx} = -1$}
+\end{algorithmic}
+\end{algorithm}
 
 
 %% ═════════════════════════════════════════════════════════════════════════════
@@ -496,7 +561,7 @@ Heuristic & 637  & 36 & Invalid$^\dagger$ & $<$0.01 & --- \\
 
 Both ILP models hit the time limit. MTZ found an incumbent of cost~948
 (49~stops) but could not prove optimality after 53\,334~B\&B nodes. Using the
-terminology from the CORO lecture on branch-and-bound, the tree was not fully
+terminology from the lecture on branch-and-bound, the tree was not fully
 explored: many open nodes remained with LP bounds that could not be pruned against
 the incumbent.
 
@@ -666,7 +731,7 @@ Instance & Method & Obj. & Stops & Status & Time (s) & B\&B nodes & SEC cuts \\
 
 \subsection{MTZ vs.\ SEC: Theory Confirmed, Practice More Nuanced}
 
-The theoretical prediction from the CORO lectures is that SEC provides a tighter LP
+The theoretical prediction from the lectures is that SEC provides a tighter LP
 relaxation ($z_{\mathrm{LP}}^{\mathrm{SEC}} \geq z_{\mathrm{LP}}^{\mathrm{MTZ}}$),
 which translates to fewer B\&B nodes via the pruning-by-bound criterion. Our results
 confirm the node count prediction consistently: SEC explores $37\times$ fewer nodes
@@ -697,7 +762,7 @@ the exact gap. This is a limitation of our reporting.
 What we can observe is that on \texttt{instance\_80\_1}, MTZ explored 53\,334~nodes
 in 120\,s without closing the gap. The large node count suggests the LP relaxation
 is still loose at that scale. Adding valid inequalities --- such as the rounded
-capacity constraints from the CORO lecture on strengthening ILP formulations ---
+capacity constraints from the lecture on strengthening ILP formulations ---
 or switching to the lazy-callback SEC would likely tighten the bound and reduce the
 tree.
 
@@ -744,9 +809,9 @@ optimal paths exist (e.g., same cost, different orderings of equivalent nodes), 
 B\&B tree is enlarged unnecessarily. Standard symmetry-breaking constraints for
 path problems would reduce this.
 
-\subsection{Connections to CORO Course Material}
+\subsection{Connections to Course Material}
 
-The three approaches in this project connect directly to the CORO lecture topics:
+The three approaches in this project connect directly to the lecture topics:
 \begin{itemize}[nosep]
   \item \textbf{LP duality} (Cours~1): the LP relaxation gives a lower bound
         $z_{\mathrm{LP}} \leq z_{\mathrm{ILP}}^*$. Complementary slackness would
@@ -782,7 +847,7 @@ weaker LP bound is compensated by having no iterative overhead.
 The \textbf{SEC model} consistently explores far fewer B\&B nodes, confirming the
 theory. However, our iterative implementation pays a heavy restart cost at each cut
 batch and proved optimality on only 2 of 9 instances. The conclusion is not that
-SEC is inferior --- it is that \emph{iterative SEC is inferior to lazy-callback
+SEC is inferior it is that \emph{iterative SEC is inferior to lazy-callback
 SEC}. With HiGHS's support for generic callbacks or with Gurobi/CPLEX, a
 lazy-callback implementation would be expected to outperform MTZ on all but the
 smallest instances.
@@ -793,20 +858,20 @@ coordinate domain) due to a structural mismatch in the escape mechanism. The
 appropriate fix is to make the Dijkstra sub-path always preserve range feasibility
 even when revisiting intermediate nodes.
 
-\paragraph{What we would do differently.}
-The most impactful improvement would be to implement SEC with proper lazy callbacks,
-which would make the comparison between MTZ and SEC meaningful. Beyond that:
-\begin{itemize}[nosep]
-  \item Use the heuristic solution as a \textbf{warm-start incumbent} for both ILP
-        models, reducing the initial optimality gap and enabling earlier pruning.
-  \item Add \textbf{Lagrangian relaxation} on the region-covering constraints
-        (Cours~4) as an alternative lower bound, which could be tighter than the MTZ
-        LP bound and cheaper to compute than SEC cuts.
-  \item For the heuristic, replace the greedy construction on sparse instances with
-        a \textbf{backbone approach}: first find the shortest $s \to t$ path on the
-        range graph (ensuring feasibility), then greedily insert region-covering
-        detours without breaking the backbone.
-\end{itemize}
+%\paragraph{What we would do differently.}
+%The most impactful improvement would be to implement SEC with proper lazy callbacks,
+%which would make the comparison between MTZ and SEC meaningful. Beyond that:
+%\begin{itemize}[nosep]
+%  \item Use the heuristic solution as a \textbf{warm-start incumbent} for both ILP
+%        models, reducing the initial optimality gap and enabling earlier pruning.
+%  \item Add \textbf{Lagrangian relaxation} on the region-covering constraints
+%        (Cours~4) as an alternative lower bound, which could be tighter than the MTZ
+%        LP bound and cheaper to compute than SEC cuts.
+%  \item For the heuristic, replace the greedy construction on sparse instances with
+%        a \textbf{backbone approach}: first find the shortest $s \to t$ path on the
+%        range graph (ensuring feasibility), then greedily insert region-covering
+%        detours without breaking the backbone.
+%\end{itemize}
 
 \newpage
 
