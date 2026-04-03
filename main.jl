@@ -1,9 +1,3 @@
-# main.jl — Run MTZ, SEC and heuristic on aerodrome instances
-# Usage: julia main.jl [--mtz|--sec|--heuristic|--all] [--verbose] [--time T] [file ...]
-
-# ---------------------------------------------------------------------------
-# Project root and source paths
-# ---------------------------------------------------------------------------
 const PROJECT_ROOT = @__DIR__
 const SRC_DIR      = joinpath(PROJECT_ROOT, "src")
 const INST_DIR     = joinpath(PROJECT_ROOT, "instances")
@@ -16,18 +10,12 @@ include(joinpath(SRC_DIR, "plot_results.jl"))
 
 using Printf
 
-# ---------------------------------------------------------------------------
-# Default instances (run when no file is given on the command line)
-# ---------------------------------------------------------------------------
 const DEFAULT_INSTANCES = [
     "instance_6_1.txt",
     "instance_40_1.txt",
     "instance_80_1.txt",
 ]
 
-# ---------------------------------------------------------------------------
-# Argument parsing
-# ---------------------------------------------------------------------------
 function parse_args(args)
     opts = Dict(
         :run_mtz       => true,
@@ -73,9 +61,6 @@ function parse_args(args)
     return opts
 end
 
-# ---------------------------------------------------------------------------
-# Run all three methods on one instance and print a results table
-# ---------------------------------------------------------------------------
 function run_instance(filepath::String, opts::Dict)
     println()
     println("=" ^ 72)
@@ -228,9 +213,6 @@ function run_instance(filepath::String, opts::Dict)
     end
 end
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 function main()
     opts = parse_args(ARGS)
 
@@ -259,7 +241,7 @@ function main()
     end
 
     println()
-    println("All runs complete.")
+    println("Complete.")
 end
 
 main()
